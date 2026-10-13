@@ -1,0 +1,84 @@
+name: Build and Publish Multi-Arch Koha Images
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Specific Koha version to build (leave empty to build all matrix versions)'
+        required: false
+        default: 'all'
+
+jobs:
+  build:
+    name: Build Koha ${{ matrix.version }} (${{ matrix.platforms }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "25.05"
+            tags: |
+              ghcr.io/${{ github.repository_owner }}/koha:25.05
+            platforms: "linux/amd64,linux/arm64"
+          - version: "25.11"
+            tags: |
+              ghcr.io/${{ github.repository_owner }}/koha:25.11
+            platforms: "linux/amd64,linux/arm64"
+          - version: "stable"
+            tags: |
+              ghcr.io/${{ github.repository_owner }}/koha:stable
+              ghcr.io/${{ github.repository_owner }}/koha:latest
+            platforms: "linux/amd64,linux/arm64"
+          - version: "26.05"
+            tags: |
+              ghcr.io/${{ github.repository_owner }}/koha:26.05
+            platforms: "linux/amd64,linux/arm64"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for multi-arch arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repository owner for image tags
+        id: prep
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            KOHA_VERSION=${{ matrix.version }}
+          tags: ${{ matrix.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

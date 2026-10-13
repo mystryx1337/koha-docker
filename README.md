@@ -1,41 +1,67 @@
 # koha-docker
 
-![Docker Image Version (tag latest semver)](https://img.shields.io/docker/v/teogramm/koha/latest)
+Modern, hardened Multi-Arch (`linux/amd64`, `linux/arm64`) Docker container for [Koha ILS](https://koha-community.org/) based on Debian Bookworm and `s6-overlay`.
 
-A Koha Docker container which includes:
-* The Apache webserver serving the OPAC (Port 8080) and
-the Koha staff interface (Port 8081), configured to use Plack.
-* The Zebra server and indexer.
-* The Koha background jobs worker.
+## Available Tags & Versions
 
-A fully functional Koha instance additionally requires:
-* A MySQL/MariaDB server.
-* A Memcached server.
-* A RabbitMQ server with the stomp pulgin enabled.
+All images are published to the GitHub Container Registry (`ghcr.io/mystryx1337/koha`):
 
-Elasticsearch is also supported, instead of Zebra.
+| Tag | Koha Release Track | Description | Multi-Arch |
+| --- | --- | --- | --- |
+| `25.05` | `25.05` | Koha 25.05 release series | `amd64`, `arm64` |
+| `25.11` | `25.11` | Koha 25.11 release series | `amd64`, `arm64` |
+| `stable` / `latest` | `stable` | Official current stable Koha release | `amd64`, `arm64` |
+| `26.05` | `26.05` | Koha 26.05 development / preview | `amd64`, `arm64` |
 
-*Notice: SIP and Z3950 are still WIP.*
+## Key Improvements & Bugfixes
 
-A separate RabbitMQ server with the stomp plugin is required as well as a Memcached server.
-Both can be easily created using the images available on Docker Hub.
+Compared to upstream `teogramm/koha`:
+* **Multi-Arch Support:** Full native support for `linux/amd64` and `linux/arm64`.
+* **STOMP ERROR Ping-Pong Loop Fix:** Patched `Net::Stomp` connect handling and non-`MESSAGE` frame processing in `background_jobs_worker.pl` to eliminate 100% CPU loops between Koha and RabbitMQ.
+* **s6 Respawn Throttling:** Added `finish` scripts with delay for `worker` and `indexer` daemons to prevent high-CPU crash-looping before DB schema initialization.
+* **Safe Credential Injection:** Replaced fragile `sed` password substitution with `xmlstarlet` to support passwords containing `/`, `&`, `\`, `<`, `>`.
+* **Reverse Proxy HTTPS Support:** Automatic `SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on` for proper Apache CGI and Plack HTTPS detection behind Nginx / Traefik.
+* **Fixed Typo:** Fixed `koha_conf.xml` filename check in `02-setup-koha.sh` to prevent accidental configuration rewrites on container restarts.
 
-## Usage
-The image is available on [Docker Hub](https://hub.docker.com/r/teogramm/koha)
+## Ports
 
-The main configuration environment variables are documented in
-[config-main.env](config-main.env).
+* `8080`: Koha OPAC (Public Interface, served via Plack)
+* `8081`: Koha Staff Client / Intranet (Administration, served via Plack)
+* `2100`: Zebra Z39.50 server
+* `6001`: Zebra SRU server
 
-The username and password for the initial setup are the same as the database username and password.
+## Docker Compose Example
 
-Logs for stored under the `/var/log/koha` directory.
-
-In order to function, Koha requires a MySQL database, a Memcached server and a RabbitMQ server with the stomp plugin.
-
-The provided [docker-compose file](examples/docker-compose.yaml) sets up all of these as containers. It provides an easy way to
-get a Koha insstance up and running. For a production environment it is recommened that each container is set up separately.
+```yaml
+services:
+  koha:
+    image: ghcr.io/mystryx1337/koha:25.05
+    container_name: koha
+    restart: always
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - MYSQL_SERVER=koha-db
+      - DB_NAME=koha_default
+      - MYSQL_USER=koha_default
+      - MYSQL_PASSWORD=secret_db_pass
+      - USE_MEMCACHED=yes
+      - MEMCACHED_SERVERS=koha-memcached:11211
+      - MB_HOST=koha-rabbitmq
+      - MB_PORT=61613
+      - MB_USER=koha_rabbit
+      - MB_PASS=secret_rabbit_pass
+      - KOHA_LANGS=de-DE
+    volumes:
+      - /opt/docker/data/koha/koha_state:/var/lib/koha
+    depends_on:
+      koha-db:
+        condition: service_healthy
+      koha-rabbitmq:
+        condition: service_healthy
+```
 
 ## Credits
 
-Some scripts have been taken from https://gitlab.com/koha-community/docker/koha-docker and modified.
-
+Based on the original foundation from [teogramm/koha-docker](https://github.com/teogramm/koha-docker) and [koha-community](https://gitlab.com/koha-community/docker/koha-docker).
