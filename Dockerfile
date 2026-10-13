@@ -51,7 +51,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure Apache
-RUN a2enmod rewrite headers proxy proxy_http cgi setenvif \
+RUN a2enmod rewrite headers proxy proxy_http cgi setenvif remoteip \
     && a2dissite 000-default \
     && printf "Listen 8080\nListen 8081\n" > /etc/apache2/ports.conf \
     && sed -E -i "s#^(export APACHE_LOG_DIR=).*#\1/var/log/koha/apache#g" /etc/apache2/envvars \

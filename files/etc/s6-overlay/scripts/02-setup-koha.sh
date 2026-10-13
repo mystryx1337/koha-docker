@@ -82,6 +82,9 @@ fi
 echo "Upgrading Koha database schema if needed..."
 koha-upgrade-schema ${KOHA_INSTANCE} || true
 
+# Disable SessionRestrictionByIP to prevent premature session logouts behind reverse proxy
+koha-mysql ${KOHA_INSTANCE} -e "UPDATE systempreferences SET value='0' WHERE variable='SessionRestrictionByIP';" || true
+
 # Patch Koha STOMP worker & BackgroundJob.pm so STOMP ERROR frames never cause a 100% CPU NACK ping-pong loop
 BG_JOB_PM="/usr/share/koha/lib/Koha/BackgroundJob.pm"
 if [ -f "${BG_JOB_PM}" ] && ! grep -q "STOMP auth failed" "${BG_JOB_PM}"; then
@@ -136,8 +139,13 @@ then
 fi
 
 koha-plack --enable ${KOHA_INSTANCE}
-a2enmod proxy headers setenvif
-printf 'SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on\n' > /etc/apache2/conf-enabled/reverse-proxy-https.conf
+a2enmod proxy headers setenvif remoteip
+cat << "EOF" > /etc/apache2/conf-enabled/reverse-proxy.conf
+SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on
+RemoteIPHeader X-Forwarded-For
+RemoteIPInternalProxy 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.1 fd00::/8
+EOF
+rm -f /etc/apache2/conf-enabled/reverse-proxy-https.conf
 
 # Prevent Plack from throwing permission errors
 touch /var/log/koha/${KOHA_INSTANCE}/opac-error.log /var/log/koha/${KOHA_INSTANCE}/intranet-error.log
