@@ -78,6 +78,10 @@ if [ -f "${CONF_FILE}" ]; then
         "${CONF_FILE}" || true
 fi
 
+# Automatically upgrade database schema if Koha version changed
+echo "Upgrading Koha database schema if needed..."
+koha-upgrade-schema ${KOHA_INSTANCE} || true
+
 # Patch Koha STOMP worker & BackgroundJob.pm so STOMP ERROR frames never cause a 100% CPU NACK ping-pong loop
 BG_JOB_PM="/usr/share/koha/lib/Koha/BackgroundJob.pm"
 if [ -f "${BG_JOB_PM}" ] && ! grep -q "STOMP auth failed" "${BG_JOB_PM}"; then
