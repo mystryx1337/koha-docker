@@ -53,7 +53,7 @@ RUN apt-get update \
 # Configure Apache
 RUN a2enmod rewrite headers proxy proxy_http cgi setenvif \
     && a2dissite 000-default \
-    && echo -e "Listen 8081\nListen 8080" > /etc/apache2/ports.conf \
+    && printf "Listen 8080\nListen 8081\n" > /etc/apache2/ports.conf \
     && sed -E -i "s#^(export APACHE_LOG_DIR=).*#\1/var/log/koha/apache#g" /etc/apache2/envvars \
     && mkdir -p /var/log/koha/apache \
     && chown -R www-data:www-data /var/log/koha/apache

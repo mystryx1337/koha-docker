@@ -21,6 +21,7 @@ export MB_USER=${MB_USER:-${RABBITMQ_USER:-guest}}
 export MB_PASS=${MB_PASS:-${RABBITMQ_PASS:-guest}}
 
 envsubst < /docker/templates/koha-sites.conf > /etc/koha/koha-sites.conf
+printf "Listen 8080\nListen 8081\n" > /etc/apache2/ports.conf
 
 # /etc/mysql/koha-common.cnf is used by a few koha scripts
 rm -f /etc/mysql/koha-common.cnf && envsubst < /docker/templates/koha-common.cnf > /etc/mysql/koha-common.cnf
